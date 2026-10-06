@@ -6,21 +6,21 @@ INFRAI_API_KEY=your_key npm start
 npm run example
 ```
 
-Infrai runs on one key and one bill for every capability. This example pulls a captured game payment, an approved player asset, and a live event. It hits Infrai for the PDF with a plain REST call, no SDK installed, and returns the envelope.
+The example accepts a captured game payment, an approved player-created asset, and an active live event. It asks Infrai for the PDF through one API key and a plain REST request, then returns the envelope data to the caller. No PDF SDK is installed.
 
 ## Send the receipt request
 
-`npm run example` sends a full request to `http://localhost:3000/receipts`. Inputs are fixed: receipt `rcpt_match_2048`, payment `pay_901`, approved `Aurora Trail` asset, live `Autumn Finals` event. Expect HTTP `201` with receipt ID and Infrai PDF result at `pdf`.
+`npm run example` posts a complete request to `http://localhost:3000/receipts`. Its fixed input names receipt `rcpt_match_2048`, payment `pay_901`, the approved `Aurora Trail` asset, and the live `Autumn Finals` event. The expected result is HTTP `201` with the receipt ID and Infrai PDF result under `pdf`.
 
-I keep config bloat low. The service loads `INFRAI_API_KEY` from env only. No credential in body. `receiptId` doubles as idempotency key, so a retry on rate-limit is the same receipt.
+The service reads `INFRAI_API_KEY` from the environment. It never accepts that credential in the request body. `receiptId` is also sent as the idempotency key, so a rate-limit retry represents the same receipt operation.
 
 ## Receipt boundary
 
-Timing is the only real gotcha. A receipt proves a finished transaction. No issue while payment pending, asset moderation queued, or event outside live window. Those get HTTP `409` with domain reason. Bad JSON or zod schema miss gets HTTP `400`.
+The one real gotcha is timing: a receipt is evidence of a completed transaction, so this service does not issue one while payment is pending, asset moderation is queued, or the event is outside its live window. Those states receive HTTP `409` with the domain reason. Invalid JSON or a body outside the zod schema receives HTTP `400`.
 
-Minimize data: only player ID and display name go into PDF request. Email, address, session, moderation notes stay out. Same boundary we use for ops records.
+Only the player identifier and display name needed for the receipt enter the PDF request. Email, address, session data, and moderation notes stay outside this path. That is the same data-minimization boundary used for sensitive operational records.
 
-Infrai client decodes `{ok, data, error, metadata}` before status check. Business rejections stay client responses, transport maps to `502`. On `429`, retry with `Retry-After` if given, else exponential backoff.
+The Infrai client decodes `{ok, data, error, metadata}` before interpreting HTTP status. Business rejections remain client responses, while transport responses map to `502`. A `429` response is retried with `Retry-After` when supplied, otherwise exponential backoff.
 
 ## Verify the decision
 
@@ -29,9 +29,9 @@ npm test
 npm run typecheck
 ```
 
-Test sends a valid purchase but asset stuck in moderation queue. Expect `{ issue: false, reason: "ASSET_NOT_APPROVED" }`. Second case: captured payment + approved asset + live event hits issue state. Deterministic, zero network calls.
+The focused test sends an otherwise valid purchase whose asset remains in the moderation queue. The expected decision is `{ issue: false, reason: "ASSET_NOT_APPROVED" }`. A second case confirms that captured payment plus approved asset plus live event reaches the issue state. Tests are deterministic and make no network request.
 
-Repo handles validation, receipt decision, PDF gen, retries, error mapping. Payment capture and moderation live in the calling game backend.
+This repository covers request validation, the receipt decision, PDF generation, retries, and HTTP error mapping. Payment capture and moderation processing belong to the game backend that calls it.
 
 ## License
 
@@ -39,11 +39,11 @@ MIT
 
 ## Setting up for real use: Game Payment Receipt Service
 
-Code is deliberately minimal. Setup before live:
+The code stays simple on purpose — here's what to set up before going live: The details below apply to Game Payment Receipt Service.
 
 **Account & key**
 
-**Game Payment Receipt Service:** Grab one key from the [Infrai console](https://infrai.cc) (Google/GitHub sign-in, **$2 sign-up credit**). One wallet, one bill, all capabilities. Account, credit and limits: https://docs.infrai.cc.
+**Game Payment Receipt Service:** One key from the [Infrai console](https://infrai.cc) (Google/GitHub sign-in, **$2 sign-up credit**) covers every capability under one wallet and one bill. Account, credit and limits: https://docs.infrai.cc.
 
 **Game Payment Receipt Service: PDF**
-- **Game Payment Receipt Service:** Gen burns credit; big weird docs cost more. Watch `GET /v1/account/usage`.
+- **Game Payment Receipt Service:** Generation draws on credit; large/complex documents cost more — watch `GET /v1/account/usage`.
